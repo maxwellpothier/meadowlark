@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Meadowlark</title>
+    <script>
+      // Excalidraw loads its fonts from here instead of a CDN, so the app works
+      // fully offline. scripts/copy-fonts.mjs puts them in public/fonts.
+      // Resolved against the page so the build works from any path.
+      window.EXCALIDRAW_ASSET_PATH = new URL("./", document.baseURI).href;
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

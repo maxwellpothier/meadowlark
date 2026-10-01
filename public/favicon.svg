@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- A western meadowlark: brown streaked back, yellow breast, black V bib. -->
+  <rect width="64" height="64" rx="14" fill="#e7f3d4"/>
+  <path d="M4 60c8-6 14-7 20-6M14 62c6-8 12-10 18-9M40 61c4-5 10-7 18-6" fill="none" stroke="#7fb24a" stroke-width="2.4" stroke-linecap="round"/>
+  <g transform="translate(-4 -3) scale(1.12)">
+    <path d="M30 49l-1 8M37 49l1 8" stroke="#a8743f" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M5 45l11-9 3 7z" fill="#7a4e24"/>
+    <path d="M13 42c1-11 13-17 25-19 6-1 11 2 12 8 1 9-8 18-21 18-8 0-14-3-16-7z" fill="#8f5e2e"/>
+    <path d="M20 37c5-3 9-4 14-4M22 41c5-2 9-3 13-2M26 30c3-2 6-3 9-3" fill="none" stroke="#5a3716" stroke-width="2" stroke-linecap="round"/>
+    <path d="M38 25c8-1 13 4 12 11-1 8-9 13-19 13 6-5 8-14 7-24z" fill="#f6c21a"/>
+    <path d="M38 33l5 6 6-7" fill="none" stroke="#1d1d1d" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="44" cy="19" r="8.5" fill="#8f5e2e"/>
+    <path d="M41 24c3-2 8-2 10 1 2 4 0 8-3 10l-8-5z" fill="#f6c21a"/>
+    <path d="M38 15.5c4-2 8-2.5 12-1.5" fill="none" stroke="#f3e6c2" stroke-width="2" stroke-linecap="round"/>
+    <path d="M51 17l9 3-9 3z" fill="#4a4a4a"/>
+    <circle cx="46.5" cy="18.5" r="1.8" fill="#111"/>
+    <circle cx="47.1" cy="17.9" r=".6" fill="#fff"/>
+  </g>
+</svg>
