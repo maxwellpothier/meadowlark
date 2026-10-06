@@ -33,6 +33,7 @@ Rules:
 - You cannot delete pages.
 - Edits don't appear instantly: the app applies them, asking the user first if the page is open. read_page
   already includes edits that are still waiting. revert_page undoes your most recent change.
+- Pages you create land in the user's Inbox at the bottom of the sidebar until they keep them.
 - The user opens the app themselves. Tell them the page name you created or changed.`;
 
 const fill = z.enum(["solid", "hachure", "cross-hatch"]);
@@ -98,6 +99,8 @@ server.registerTool(
         updatedAt: new Date(p.updatedAt).toISOString(),
         repo: p.repo ?? undefined,
         pinned: p.pinnedAt != null || undefined,
+        inbox: p.inbox || undefined,
+        savedForLater: p.savedAt != null || undefined,
         elements: p.elementCount,
         pendingEdits: p.claude?.queued || undefined,
       })),

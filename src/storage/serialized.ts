@@ -38,6 +38,8 @@ export function serialized(inner: StorageAdapter): StorageAdapter {
     savePageView: (id, view) => run(() => inner.savePageView(id, view)),
     updatePageMeta: (id, patch) => run(() => inner.updatePageMeta(id, patch)),
     setPagePinned: (id, pinned) => run(() => inner.setPagePinned(id, pinned)),
+    keepPage: (id) => run(() => inner.keepPage(id)),
+    setPageSaved: (id, saved) => run(() => inner.setPageSaved(id, saved)),
     duplicatePage: (id, name) => run(() => inner.duplicatePage(id, name)),
     deletePage: (id) => run(() => inner.deletePage(id)),
     putPages: (pages) => run(() => inner.putPages(pages)),

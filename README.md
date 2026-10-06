@@ -80,6 +80,9 @@ The rules:
   - Create, rename (double-click or the ⋯ menu), duplicate, and delete (with a confirmation).
   - Sorted by most recently changed, so a page you or Claude just changed is at the top.
   - Pin pages from the ⋯ menu to keep them above the rest, most recently pinned first. Pinning doesn't count as a change.
+  - Pages Claude makes land in the Inbox at the bottom of the sidebar. Open one and click Keep to move it into your pages. Duplicates of Claude's pages go straight to your pages.
+  - Save for later (⋯ menu, or the inbox banner) moves a page out of your main list into the Saved for Later section, most recently saved first. Move to pages brings it back. Neither counts as a change.
+  - The Inbox and Saved for Later sections open and close by clicking their headers, like VS Code's panes.
   - Search filters by name.
   - The sidebar can be collapsed.
 - **Autosave**

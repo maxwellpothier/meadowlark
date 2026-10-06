@@ -55,6 +55,12 @@ export const SearchIcon = () => (
   </Icon>
 );
 
+export const ChevronIcon = () => (
+  <Icon>
+    <path d="M9 6l6 6-6 6" />
+  </Icon>
+);
+
 export const PinIcon = () => (
   <svg className="icon pin-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"
     strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

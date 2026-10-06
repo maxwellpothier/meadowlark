@@ -1,16 +1,19 @@
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { SaveStatus } from "../editor/AutoSaver";
+import { loadPrefs, savePrefs } from "../prefs";
 import type { PageMeta } from "../storage/types";
-import { CollapseIcon, ExpandIcon, ImportIcon, MoreIcon, PlusIcon, SearchIcon } from "./icons";
+import { ChevronIcon, CollapseIcon, ExpandIcon, ImportIcon, MoreIcon, PlusIcon, SearchIcon } from "./icons";
 import { Menu } from "./Menu";
 import { PageItem } from "./PageItem";
-import { sortPages } from "./sort";
+import { splitPages, type SidebarSections } from "./sort";
 
 export interface SidebarActions {
   onSelect: (id: string) => void;
   onCreate: () => void;
   onRename: (id: string, name: string) => void;
   onTogglePinned: (id: string) => void;
+  onKeep: (id: string) => void;
+  onToggleSaved: (id: string) => void;
   onDuplicate: (id: string) => void;
   onDelete: (id: string) => void;
   onExport: (id: string) => void;
@@ -30,6 +33,11 @@ interface SidebarProps {
 
 export function Sidebar({ pages, activeId, collapsed, status, actions }: SidebarProps) {
   const [query, setQuery] = useState("");
+  // Memoized so the lists' memo holds across save-status updates.
+  const sections = useMemo(() => splitPages(pages), [pages]);
+  const [open, setOpen] = useState(() => loadPrefs().sidebarSections);
+  useEffect(() => savePrefs({ sidebarSections: open }), [open]);
+  const toggle = (key: keyof typeof open) => setOpen((o) => ({ ...o, [key]: !o[key] }));
 
   if (collapsed) {
     return (
@@ -97,7 +105,28 @@ export function Sidebar({ pages, activeId, collapsed, status, actions }: Sidebar
         </label>
       </div>
 
-      <PageList pages={pages} activeId={activeId} query={query} actions={actions} />
+      <PageList kind="pages" pages={sections.pages} activeId={activeId} query={query} actions={actions} />
+
+      <SidebarSection
+        title="Inbox"
+        hint="Pages Claude made. Keep one to move it into your pages."
+        count={sections.inbox.length}
+        highlight
+        open={open.inbox}
+        onToggle={() => toggle("inbox")}
+      >
+        <PageList kind="inbox" pages={sections.inbox} activeId={activeId} query={query} actions={actions} />
+      </SidebarSection>
+
+      <SidebarSection
+        title="Saved for Later"
+        hint="Pages kept for reference, out of your main list."
+        count={sections.saved.length}
+        open={open.saved}
+        onToggle={() => toggle("saved")}
+      >
+        <PageList kind="saved" pages={sections.saved} activeId={activeId} query={query} actions={actions} />
+      </SidebarSection>
 
       <footer className="sidebar-footer">
         <span className={`save-status ${status}`}>{STATUS_LABEL[status]}</span>
@@ -115,7 +144,40 @@ const STATUS_LABEL: Record<SaveStatus, string> = {
   error: "Save failed, retrying",
 };
 
+const EMPTY_LABEL: Record<keyof SidebarSections, string> = {
+  pages: "No pages yet.",
+  inbox: "Nothing new from Claude.",
+  saved: "Nothing saved. Use a page's ⋯ menu to move it here.",
+};
+
+interface SidebarSectionProps {
+  title: string;
+  hint: string;
+  count: number;
+  /** Draw the count in the accent colour, for sections that want attention. */
+  highlight?: boolean;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}
+
+/** A section at the bottom of the sidebar, like VS Code's panes: click the header to open its list. */
+function SidebarSection({ title, hint, count, highlight, open, onToggle, children }: SidebarSectionProps) {
+  return (
+    <section className={open ? "sidebar-section open" : "sidebar-section"} aria-label={title}>
+      <button type="button" className="sidebar-section-header" aria-expanded={open} title={hint} onClick={onToggle}>
+        <ChevronIcon />
+        <span className="sidebar-section-title">{title}</span>
+        {count > 0 && <span className={highlight ? "sidebar-section-count highlight" : "sidebar-section-count"}>{count}</span>}
+      </button>
+      {open && children}
+    </section>
+  );
+}
+
 interface PageListProps {
+  kind: keyof SidebarSections;
+  /** Already in display order. */
   pages: PageMeta[];
   activeId: string | null;
   query: string;
@@ -123,21 +185,20 @@ interface PageListProps {
 }
 
 // Memoized so save-status updates don't re-render every row.
-const PageList = memo(function PageList({ pages, activeId, query, actions }: PageListProps) {
+const PageList = memo(function PageList({ kind, pages, activeId, query, actions }: PageListProps) {
   const now = useNow(60_000);
 
-  const sorted = useMemo(() => sortPages(pages), [pages]);
   const needle = query.trim().toLowerCase();
   const visible = useMemo(
-    () => (needle ? sorted.filter((p) => p.name.toLowerCase().includes(needle)) : sorted),
-    [sorted, needle],
+    () => (needle ? pages.filter((p) => p.name.toLowerCase().includes(needle)) : pages),
+    [pages, needle],
   );
   if (visible.length === 0) {
-    return <div className="page-list-empty">{needle ? "No pages match." : "No pages yet."}</div>;
+    return <div className="page-list-empty">{needle ? "No pages match." : EMPTY_LABEL[kind]}</div>;
   }
 
   return (
-    <ul className="page-list">
+    <ul className={`page-list ${kind}`}>
       {visible.map((page) => (
         <PageItem
           key={page.id}
@@ -147,6 +208,8 @@ const PageList = memo(function PageList({ pages, activeId, query, actions }: Pag
           onSelect={actions.onSelect}
           onRename={actions.onRename}
           onTogglePinned={actions.onTogglePinned}
+          onKeep={actions.onKeep}
+          onToggleSaved={actions.onToggleSaved}
           onDuplicate={actions.onDuplicate}
           onExport={actions.onExport}
           onDelete={actions.onDelete}

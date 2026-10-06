@@ -7,6 +7,8 @@ export type ThemeName = "light" | "dark";
 export interface Prefs {
   lastActivePageId: string | null;
   sidebarCollapsed: boolean;
+  /** Which of the sidebar's bottom sections are open. */
+  sidebarSections: { inbox: boolean; saved: boolean };
   theme: ThemeName;
 }
 
@@ -21,7 +23,12 @@ function defaultTheme(): ThemeName {
 }
 
 function defaults(): Prefs {
-  return { lastActivePageId: null, sidebarCollapsed: isNarrowScreen(), theme: defaultTheme() };
+  return {
+    lastActivePageId: null,
+    sidebarCollapsed: isNarrowScreen(),
+    sidebarSections: { inbox: true, saved: false },
+    theme: defaultTheme(),
+  };
 }
 
 export function loadPrefs(): Prefs {

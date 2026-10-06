@@ -239,6 +239,21 @@ export default function App() {
       if (meta) updateMeta(meta);
     },
 
+    onKeep: async (id) => {
+      setPages((ps) => ps?.map((p) => (p.id === id ? { ...p, inbox: false } : p)) ?? ps);
+      const meta = await storage.keepPage(id);
+      if (meta) updateMeta(meta);
+    },
+
+    onToggleSaved: async (id) => {
+      const page = pages?.find((p) => p.id === id);
+      if (!page) return;
+      const savedAt = page.inbox || page.savedAt == null ? Date.now() : null;
+      setPages((ps) => ps?.map((p) => (p.id === id ? { ...p, savedAt, inbox: false } : p)) ?? ps);
+      const meta = await storage.setPageSaved(id, savedAt != null);
+      if (meta) updateMeta(meta);
+    },
+
     onDuplicate: async (id) => {
       const source = pages?.find((p) => p.id === id);
       if (!source) return;
@@ -388,7 +403,16 @@ export default function App() {
       setClaudeBusy(true);
       void storage.dismissClaudeChange(activeId).finally(() => setClaudeBusy(false));
     },
+    onKeepPage: () => takeFromInbox(actions.onKeep),
+    onSaveForLater: () => takeFromInbox(actions.onToggleSaved),
   };
+
+  // Taking a page out of the inbox accepts what Claude drew, so "Claude changed this page" doesn't follow.
+  function takeFromInbox(move: (id: string) => void) {
+    if (!activePage) return;
+    move(activePage.id);
+    if (activePage.claude?.changedAt != null) void storage.dismissClaudeChange(activePage.id);
+  }
 
   if (fatal) return <div className="editor-message">{fatal}</div>;
 

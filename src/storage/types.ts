@@ -16,6 +16,10 @@ export interface PageMeta {
   byClaude?: boolean;
   /** When the page was pinned to the top of the sidebar. Null or absent if it isn't pinned. */
   pinnedAt?: number | null;
+  /** Claude made this page and the user hasn't kept it yet, so it's listed in the inbox. */
+  inbox?: boolean;
+  /** When the page was moved to Saved for Later. Null or absent if it's in the main list or the inbox. */
+  savedAt?: number | null;
   claude?: ClaudeStatus;
 }
 
@@ -97,6 +101,10 @@ export interface StorageAdapter {
   updatePageMeta(id: string, patch: Partial<Pick<PageMeta, "name">>): Promise<PageMeta | null>;
   /** Pins or unpins a page. Does not bump updatedAt. */
   setPagePinned(id: string, pinned: boolean): Promise<PageMeta | null>;
+  /** Moves a page out of the inbox. Does not bump updatedAt. */
+  keepPage(id: string): Promise<PageMeta | null>;
+  /** Moves a page into or out of Saved for Later. Saving an inbox page keeps it. Does not bump updatedAt. */
+  setPageSaved(id: string, saved: boolean): Promise<PageMeta | null>;
   duplicatePage(id: string, name: string): Promise<PageMeta | null>;
   deletePage(id: string): Promise<void>;
   /** Insert or overwrite pages by id. Pages not in the list are untouched. */

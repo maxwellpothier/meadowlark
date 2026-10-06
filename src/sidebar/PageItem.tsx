@@ -10,6 +10,8 @@ interface PageItemProps {
   onSelect: (id: string) => void;
   onRename: (id: string, name: string) => void;
   onTogglePinned: (id: string) => void;
+  onKeep: (id: string) => void;
+  onToggleSaved: (id: string) => void;
   onDuplicate: (id: string) => void;
   onExport: (id: string) => void;
   onDelete: (id: string) => void;
@@ -18,7 +20,10 @@ interface PageItemProps {
 export function PageItem(props: PageItemProps) {
   const { page, active, timeLabel } = props;
   const [editing, setEditing] = useState(false);
-  const pinned = page.pinnedAt != null;
+  const saved = !page.inbox && page.savedAt != null;
+  // Pins only order the main list.
+  const pinned = !page.inbox && !saved && page.pinnedAt != null;
+  const saveForLater = { label: "Save for later", onSelect: () => props.onToggleSaved(page.id) };
 
   return (
     <li
@@ -60,7 +65,11 @@ export function PageItem(props: PageItemProps) {
             label={`Actions for ${page.name}`}
             trigger={<MoreIcon />}
             items={[
-              { label: pinned ? "Unpin" : "Pin to top", onSelect: () => props.onTogglePinned(page.id) },
+              ...(page.inbox
+                ? [{ label: "Keep", onSelect: () => props.onKeep(page.id) }, saveForLater]
+                : saved
+                  ? [{ label: "Move to pages", onSelect: () => props.onToggleSaved(page.id) }]
+                  : [{ label: pinned ? "Unpin" : "Pin to top", onSelect: () => props.onTogglePinned(page.id) }, saveForLater]),
               { label: "Rename", onSelect: () => setEditing(true) },
               { label: "Duplicate", onSelect: () => props.onDuplicate(page.id) },
               { label: "Export .excalidraw", onSelect: () => props.onExport(page.id) },

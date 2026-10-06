@@ -190,6 +190,7 @@ body {
 
 .page-list {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   margin: 0;
   padding: 2px 6px 8px;
@@ -253,17 +254,101 @@ body {
 }
 
 /* A rule under the last pinned page separates the pins from the rest. */
-.page-item.pinned:has(+ .page-item:not(.pinned)) {
+.page-list.pages .page-item.pinned:has(+ .page-item:not(.pinned)) {
   margin-bottom: 9px;
 }
 
-.page-item.pinned:has(+ .page-item:not(.pinned))::after {
+.page-list.pages .page-item.pinned:has(+ .page-item:not(.pinned))::after {
   content: "";
   position: absolute;
   right: 4px;
   bottom: -5px;
   left: 10px;
   border-bottom: 1px solid var(--sb-border);
+}
+
+.sidebar-section {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  min-height: 0;
+  border-top: 1px solid var(--sb-border);
+}
+
+/* An open section is only as tall as its pages, and never more than 40% of the sidebar. */
+.sidebar-section.open {
+  flex: 0 1 auto;
+  max-height: 40%;
+}
+
+.sidebar-section-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  height: 30px;
+  padding: 0 10px 0 6px;
+  border: none;
+  background: transparent;
+  color: var(--sb-text);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.sidebar-section-header:hover {
+  background: var(--sb-hover);
+}
+
+.sidebar-section-header:focus-visible {
+  outline: 2px solid var(--sb-accent);
+  outline-offset: -2px;
+}
+
+.sidebar-section-header .icon {
+  width: 14px;
+  height: 14px;
+  color: var(--sb-muted);
+  transition: transform 0.1s;
+}
+
+.sidebar-section.open .sidebar-section-header .icon {
+  transform: rotate(90deg);
+}
+
+.sidebar-section-title {
+  flex: 1;
+}
+
+.sidebar-section-count {
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--sb-border);
+  color: var(--sb-muted);
+  letter-spacing: 0;
+  line-height: 18px;
+  text-align: center;
+}
+
+.sidebar-section-count.highlight {
+  background: var(--sb-accent);
+  color: var(--sb-on-accent);
+}
+
+.sidebar-section .page-list {
+  flex: 0 1 auto;
+}
+
+.sidebar-section .page-list-empty {
+  flex: none;
+  padding: 2px 14px 12px;
+  font-size: 12px;
+  text-align: left;
 }
 
 .page-menu {

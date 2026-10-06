@@ -27,6 +27,8 @@ interface PageRow {
   repo: string | null;
   by_claude: number;
   pinned_at: number | null;
+  inbox: number;
+  saved_at: number | null;
   claude_change: string | null;
   queued: number;
 }
@@ -49,7 +51,7 @@ export interface ClaudePageView {
   shapes: Shape[];
 }
 
-const META_COLUMNS = `p.id, p.name, p.created_at, p.updated_at, p.ord, p.repo, p.by_claude, p.pinned_at, p.claude_change,
+const META_COLUMNS = `p.id, p.name, p.created_at, p.updated_at, p.ord, p.repo, p.by_claude, p.pinned_at, p.inbox, p.saved_at, p.claude_change,
   (SELECT count(*) FROM queue q WHERE q.page_id = p.id) AS queued`;
 
 /**
@@ -142,6 +144,26 @@ export class Store {
     });
   }
 
+  /** Moves a page out of the inbox. Does not bump updatedAt. */
+  keepPage(id: string): PageMeta | null {
+    return this.tx(() => {
+      if (!this.metaRow(id)) return null;
+      this.run("UPDATE pages SET inbox = 0 WHERE id = ?", id);
+      return toMeta(this.metaRow(id)!);
+    });
+  }
+
+  /** Moves a page into or out of Saved for Later. Saving an inbox page keeps it. Does not bump updatedAt. */
+  setPageSaved(id: string, saved: boolean): PageMeta | null {
+    return this.tx(() => {
+      if (!this.metaRow(id)) return null;
+      // Saving an already saved page keeps its place in the list.
+      if (saved) this.run("UPDATE pages SET saved_at = COALESCE(saved_at, ?), inbox = 0 WHERE id = ?", this.now(), id);
+      else this.run("UPDATE pages SET saved_at = NULL WHERE id = ?", id);
+      return toMeta(this.metaRow(id)!);
+    });
+  }
+
   duplicatePage(id: string, name: string): PageMeta | null {
     return this.tx(() => {
       const source = this.getPage(id);
@@ -161,11 +183,11 @@ export class Store {
       for (const page of pages) {
         const elements = liveElements(page.elements);
         this.run(
-          `INSERT INTO pages (id, name, created_at, updated_at, ord, repo, by_claude, pinned_at, elements, app_state)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `INSERT INTO pages (id, name, created_at, updated_at, ord, repo, by_claude, pinned_at, inbox, saved_at, elements, app_state)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT (id) DO UPDATE SET name = excluded.name, created_at = excluded.created_at,
              updated_at = excluded.updated_at, ord = excluded.ord, repo = COALESCE(excluded.repo, pages.repo),
-             by_claude = MAX(excluded.by_claude, pages.by_claude), pinned_at = excluded.pinned_at,
+             by_claude = MAX(excluded.by_claude, pages.by_claude), pinned_at = excluded.pinned_at, inbox = excluded.inbox, saved_at = excluded.saved_at,
              elements = excluded.elements, app_state = excluded.app_state, claude_change = NULL`,
           page.id,
           page.name,
@@ -176,6 +198,8 @@ export class Store {
           // Backups from before byClaude existed: only Claude's pages had a repo.
           Number(page.byClaude ?? page.repo != null),
           page.pinnedAt ?? null,
+          Number(page.inbox ?? false),
+          page.savedAt ?? null,
           JSON.stringify(elements),
           JSON.stringify(page.appState),
         );
@@ -221,7 +245,7 @@ export class Store {
   addClaudePage(name: string, shapes: NewShape[], repo: string | null): EditResult {
     try {
       return this.tx(() => {
-        const meta = this.insertPage({ name, repo, byClaude: true });
+        const meta = this.insertPage({ name, repo, byClaude: true }, true);
         const result = this.enqueue(meta.id, [], { add: shapes });
         if (!result.ok) throw new RejectedEdit(result.errors); // roll back the page
         return result;
@@ -304,14 +328,14 @@ export class Store {
 
   // ---- internals ------------------------------------------------------------
 
-  private insertPage(input: NewPageInput): PageMeta {
+  private insertPage(input: NewPageInput, inbox = false): PageMeta {
     const { min } = this.get<{ min: number }>("SELECT COALESCE(MIN(ord), 0) AS min FROM pages")!;
     const now = this.now();
     const id = randomUUID();
     const elements = liveElements(input.elements ?? []);
     this.run(
-      `INSERT INTO pages (id, name, created_at, updated_at, ord, repo, by_claude, elements, app_state)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO pages (id, name, created_at, updated_at, ord, repo, by_claude, inbox, elements, app_state)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       input.name,
       now,
@@ -319,6 +343,7 @@ export class Store {
       Math.min(min, 0) - 1,
       input.repo ?? null,
       Number(input.byClaude ?? false),
+      Number(inbox),
       JSON.stringify(elements),
       JSON.stringify(input.appState ?? {}),
     );
@@ -478,6 +503,8 @@ function toMeta(row: PageRow): PageMeta {
     repo: row.repo,
     byClaude: row.by_claude === 1,
     pinnedAt: row.pinned_at,
+    inbox: row.inbox === 1,
+    savedAt: row.saved_at,
     claude: { queued: row.queued, changedAt: change?.at ?? null },
   };
 }

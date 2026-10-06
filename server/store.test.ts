@@ -91,6 +91,40 @@ describe("Store pages", () => {
     expect(copy.byClaude).toBe(true);
   });
 
+  it("puts only Claude's new pages in the inbox until they're kept", () => {
+    const mine = store.createPage({ name: "Mine" });
+    const result = store.addClaudePage("Claude's", [{ type: "text", x: 0, y: 0, label: "hi" }], null);
+    if (!result.ok) throw new Error(result.errors.join());
+    const before = store.getPage(result.pageId)!;
+    expect(mine.inbox).toBe(false);
+    expect(before.inbox).toBe(true);
+    expect(store.duplicatePage(result.pageId, "Copy")!.inbox).toBe(false);
+
+    const kept = store.keepPage(result.pageId)!;
+    expect(kept.inbox).toBe(false);
+    expect(kept.updatedAt).toBe(before.updatedAt);
+    expect(store.keepPage("missing")).toBeNull();
+  });
+
+  it("saves for later and back without bumping updatedAt, keeping inbox pages it saves", () => {
+    const a = store.createPage({ name: "A" });
+    expect(a.savedAt).toBeNull();
+    const saved = store.setPageSaved(a.id, true)!;
+    expect(saved.savedAt).not.toBeNull();
+    expect(saved.updatedAt).toBe(a.updatedAt);
+    // Saving again keeps its place in the list.
+    expect(store.setPageSaved(a.id, true)!.savedAt).toBe(saved.savedAt);
+    expect(store.duplicatePage(a.id, "A copy")!.savedAt).toBeNull();
+    expect(store.setPageSaved(a.id, false)!.savedAt).toBeNull();
+    expect(store.setPageSaved("missing", true)).toBeNull();
+
+    const result = store.addClaudePage("Claude's", [{ type: "text", x: 0, y: 0, label: "hi" }], null);
+    if (!result.ok) throw new Error(result.errors.join());
+    const fromInbox = store.setPageSaved(result.pageId, true)!;
+    expect(fromInbox.inbox).toBe(false);
+    expect(fromInbox.savedAt).not.toBeNull();
+  });
+
   it("treats pages with a repo in an older backup as made by Claude", () => {
     const page = { createdAt: 1, updatedAt: 2, order: 0, elements: [], appState: {}, files: {} };
     store.putPages([
@@ -129,16 +163,20 @@ describe("Store pages", () => {
     expect(store.setPagePinned("missing", true)).toBeNull();
   });
 
-  it("restores pins from a backup", () => {
+  it("restores pins, the inbox and saved for later from a backup", () => {
     const a = store.createPage({ name: "A" });
     const b = store.setPagePinned(store.createPage({ name: "B" }).id, true)!;
     const page = { elements: [], appState: {}, files: {} };
     store.putPages([
-      { ...a, ...page, pinnedAt: 42 },
+      { ...a, ...page, pinnedAt: 42, inbox: true, savedAt: 43 },
       { ...b, ...page, pinnedAt: null },
     ]);
     expect(store.getPage(a.id)!.pinnedAt).toBe(42);
+    expect(store.getPage(a.id)!.inbox).toBe(true);
+    expect(store.getPage(a.id)!.savedAt).toBe(43);
     expect(store.getPage(b.id)!.pinnedAt).toBeNull();
+    expect(store.getPage(b.id)!.inbox).toBe(false);
+    expect(store.getPage(b.id)!.savedAt).toBeNull();
   });
 
   it("putPages inserts new pages and overwrites existing ones by id", () => {

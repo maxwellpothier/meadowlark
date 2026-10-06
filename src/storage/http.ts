@@ -71,6 +71,14 @@ export class HttpAdapter implements StorageAdapter {
     return call("PUT", `pages/${enc(id)}/pinned`, { pinned });
   }
 
+  keepPage(id: string): Promise<PageMeta | null> {
+    return call("POST", `pages/${enc(id)}/keep`);
+  }
+
+  setPageSaved(id: string, saved: boolean): Promise<PageMeta | null> {
+    return call("PUT", `pages/${enc(id)}/saved`, { saved });
+  }
+
   duplicatePage(id: string, name: string): Promise<PageMeta | null> {
     return call("POST", `pages/${enc(id)}/duplicate`, { name });
   }

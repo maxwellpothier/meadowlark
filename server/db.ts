@@ -60,6 +60,14 @@ const MIGRATIONS = [
   `ALTER TABLE pages ADD COLUMN by_claude INTEGER NOT NULL DEFAULT 0;
    UPDATE pages SET by_claude = 1 WHERE repo IS NOT NULL;`,
   `ALTER TABLE pages ADD COLUMN pinned_at INTEGER;`,
+  // A short-lived "saved for later" column. It stays so databases that ran it keep their version in step.
+  `ALTER TABLE pages ADD COLUMN saved_at INTEGER;`,
+  // Claude's pages wait in the inbox until the user keeps them, including the ones made before the inbox.
+  `ALTER TABLE pages DROP COLUMN saved_at;
+   ALTER TABLE pages ADD COLUMN inbox INTEGER NOT NULL DEFAULT 0;
+   UPDATE pages SET inbox = 1 WHERE by_claude = 1;`,
+  // Saved for Later is back, now as its own sidebar section.
+  `ALTER TABLE pages ADD COLUMN saved_at INTEGER;`,
 ];
 
 export function openDb(path = defaultDbPath()): DatabaseSync {
