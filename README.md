@@ -79,6 +79,7 @@ The rules:
 - **Pages sidebar**
   - Create, rename (double-click or the ⋯ menu), duplicate, and delete (with a confirmation).
   - Sorted by most recently changed, so a page you or Claude just changed is at the top.
+  - Pin pages from the ⋯ menu to keep them above the rest, most recently pinned first. Pinning doesn't count as a change.
   - Search filters by name.
   - The sidebar can be collapsed.
 - **Autosave**

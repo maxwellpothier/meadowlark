@@ -59,6 +59,7 @@ const MIGRATIONS = [
   // Until now only Claude's pages had a repo, so that's how existing ones are found.
   `ALTER TABLE pages ADD COLUMN by_claude INTEGER NOT NULL DEFAULT 0;
    UPDATE pages SET by_claude = 1 WHERE repo IS NOT NULL;`,
+  `ALTER TABLE pages ADD COLUMN pinned_at INTEGER;`,
 ];
 
 export function openDb(path = defaultDbPath()): DatabaseSync {

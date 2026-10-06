@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { PageMeta } from "../storage/types";
 import { Menu } from "./Menu";
-import { ClaudeIcon, MoreIcon } from "./icons";
+import { ClaudeIcon, MoreIcon, PinIcon } from "./icons";
 
 interface PageItemProps {
   page: PageMeta;
@@ -9,6 +9,7 @@ interface PageItemProps {
   timeLabel: string;
   onSelect: (id: string) => void;
   onRename: (id: string, name: string) => void;
+  onTogglePinned: (id: string) => void;
   onDuplicate: (id: string) => void;
   onExport: (id: string) => void;
   onDelete: (id: string) => void;
@@ -17,10 +18,11 @@ interface PageItemProps {
 export function PageItem(props: PageItemProps) {
   const { page, active, timeLabel } = props;
   const [editing, setEditing] = useState(false);
+  const pinned = page.pinnedAt != null;
 
   return (
     <li
-      className={active ? "page-item active" : "page-item"}
+      className={["page-item", active && "active", pinned && "pinned"].filter(Boolean).join(" ")}
       onClick={() => !editing && props.onSelect(page.id)}
       onDoubleClick={() => setEditing(true)}
       aria-current={active ? "page" : undefined}
@@ -41,7 +43,14 @@ export function PageItem(props: PageItemProps) {
               {page.byClaude && <ClaudeIcon />}
               {page.name || "Untitled"}
             </span>
-            <span className="page-time">{timeLabel}</span>
+            <span className="page-time">
+              {pinned && (
+                <span className="page-pinned" title="Pinned" aria-label="Pinned">
+                  <PinIcon />
+                </span>
+              )}
+              {timeLabel}
+            </span>
           </div>
           {(page.claude?.queued || page.claude?.changedAt != null) && (
             <span className="page-claude" title="Changed by Claude" aria-label="Changed by Claude" />
@@ -51,6 +60,7 @@ export function PageItem(props: PageItemProps) {
             label={`Actions for ${page.name}`}
             trigger={<MoreIcon />}
             items={[
+              { label: pinned ? "Unpin" : "Pin to top", onSelect: () => props.onTogglePinned(page.id) },
               { label: "Rename", onSelect: () => setEditing(true) },
               { label: "Duplicate", onSelect: () => props.onDuplicate(page.id) },
               { label: "Export .excalidraw", onSelect: () => props.onExport(page.id) },

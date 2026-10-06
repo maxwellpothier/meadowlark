@@ -116,6 +116,31 @@ describe("Store pages", () => {
     expect(store.updatePageMeta("missing", { name: "x" })).toBeNull();
   });
 
+  it("pins and unpins without bumping updatedAt", () => {
+    const a = store.createPage({ name: "A" });
+    expect(a.pinnedAt).toBeNull();
+    const pinned = store.setPagePinned(a.id, true)!;
+    expect(pinned.pinnedAt).not.toBeNull();
+    expect(pinned.updatedAt).toBe(a.updatedAt);
+    // Pinning again keeps its place among the pins.
+    expect(store.setPagePinned(a.id, true)!.pinnedAt).toBe(pinned.pinnedAt);
+    expect(store.duplicatePage(a.id, "A copy")!.pinnedAt).toBeNull();
+    expect(store.setPagePinned(a.id, false)!.pinnedAt).toBeNull();
+    expect(store.setPagePinned("missing", true)).toBeNull();
+  });
+
+  it("restores pins from a backup", () => {
+    const a = store.createPage({ name: "A" });
+    const b = store.setPagePinned(store.createPage({ name: "B" }).id, true)!;
+    const page = { elements: [], appState: {}, files: {} };
+    store.putPages([
+      { ...a, ...page, pinnedAt: 42 },
+      { ...b, ...page, pinnedAt: null },
+    ]);
+    expect(store.getPage(a.id)!.pinnedAt).toBe(42);
+    expect(store.getPage(b.id)!.pinnedAt).toBeNull();
+  });
+
   it("putPages inserts new pages and overwrites existing ones by id", () => {
     const a = store.createPage({ name: "A", elements: [image("old")], files: files("old") });
     store.savePageView(a.id, { scrollX: 5, scrollY: 5, zoom: 1 });

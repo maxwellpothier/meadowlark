@@ -247,6 +247,25 @@ body {
   color: var(--sb-muted);
 }
 
+.page-pinned .pin-icon {
+  margin-right: 4px;
+  vertical-align: -2px;
+}
+
+/* A rule under the last pinned page separates the pins from the rest. */
+.page-item.pinned:has(+ .page-item:not(.pinned)) {
+  margin-bottom: 9px;
+}
+
+.page-item.pinned:has(+ .page-item:not(.pinned))::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  bottom: -5px;
+  left: 10px;
+  border-bottom: 1px solid var(--sb-border);
+}
+
 .page-menu {
   opacity: 0;
 }

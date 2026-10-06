@@ -50,6 +50,7 @@ export async function parseBackup(file: Blob): Promise<BackupPage[]> {
       createdAt: typeof raw.createdAt === "number" ? raw.createdAt : now,
       updatedAt: typeof raw.updatedAt === "number" ? raw.updatedAt : now,
       order: typeof raw.order === "number" ? raw.order : i,
+      pinnedAt: typeof raw.pinnedAt === "number" ? raw.pinnedAt : null,
       // restoreElements repairs/migrates elements exactly as a .excalidraw load would.
       elements: restoreElements(Array.isArray(raw.elements) ? raw.elements : [], null),
       appState: pickPersistedAppState(isRecord(raw.appState) ? raw.appState : null),

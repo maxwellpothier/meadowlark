@@ -97,6 +97,7 @@ server.registerTool(
         name: p.name,
         updatedAt: new Date(p.updatedAt).toISOString(),
         repo: p.repo ?? undefined,
+        pinned: p.pinnedAt != null || undefined,
         elements: p.elementCount,
         pendingEdits: p.claude?.queued || undefined,
       })),

@@ -55,6 +55,13 @@ export const SearchIcon = () => (
   </Icon>
 );
 
+export const PinIcon = () => (
+  <svg className="icon pin-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"
+    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M12 17v5M9 3h6l-1 6 3 4H7l3-4z" />
+  </svg>
+);
+
 // Claude's spark: rays of uneven length from a shared centre, in Claude's orange.
 const SPARK_RAYS = [10, 8, 9.5, 7.5, 10, 8.5, 9, 7.5, 10, 8, 9.5, 8.5];
 export const ClaudeIcon = () => (

@@ -10,6 +10,7 @@ export interface SidebarActions {
   onSelect: (id: string) => void;
   onCreate: () => void;
   onRename: (id: string, name: string) => void;
+  onTogglePinned: (id: string) => void;
   onDuplicate: (id: string) => void;
   onDelete: (id: string) => void;
   onExport: (id: string) => void;
@@ -145,6 +146,7 @@ const PageList = memo(function PageList({ pages, activeId, query, actions }: Pag
           timeLabel={relativeTime(page.updatedAt, now)}
           onSelect={actions.onSelect}
           onRename={actions.onRename}
+          onTogglePinned={actions.onTogglePinned}
           onDuplicate={actions.onDuplicate}
           onExport={actions.onExport}
           onDelete={actions.onDelete}

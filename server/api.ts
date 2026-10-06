@@ -20,6 +20,7 @@ const ROUTES: [method: string, pattern: RegExp, route: Route][] = [
   ["GET", /^pages\/([^/]+)$/, (s, [id]) => s.getPage(id)],
   ["PATCH", /^pages\/([^/]+)$/, (s, [id], b) => s.updatePageMeta(id, b as { name?: string })],
   ["DELETE", /^pages\/([^/]+)$/, (s, [id]) => s.deletePage(id)],
+  ["PUT", /^pages\/([^/]+)\/pinned$/, (s, [id], b) => s.setPagePinned(id, (b as { pinned: boolean }).pinned === true)],
   ["PUT", /^pages\/([^/]+)\/scene$/, (s, [id], b) => s.savePageScene(id, b as PageScene)],
   ["PUT", /^pages\/([^/]+)\/view$/, (s, [id], b) => s.savePageView(id, b as PageView)],
   ["POST", /^pages\/([^/]+)\/duplicate$/, (s, [id], b) => s.duplicatePage(id, (b as { name: string }).name)],

@@ -230,6 +230,15 @@ export default function App() {
       if (meta) updateMeta(meta);
     },
 
+    onTogglePinned: async (id) => {
+      const page = pages?.find((p) => p.id === id);
+      if (!page) return;
+      const pinnedAt = page.pinnedAt == null ? Date.now() : null;
+      setPages((ps) => ps?.map((p) => (p.id === id ? { ...p, pinnedAt } : p)) ?? ps);
+      const meta = await storage.setPagePinned(id, pinnedAt != null);
+      if (meta) updateMeta(meta);
+    },
+
     onDuplicate: async (id) => {
       const source = pages?.find((p) => p.id === id);
       if (!source) return;

@@ -26,6 +26,7 @@ interface PageRow {
   ord: number;
   repo: string | null;
   by_claude: number;
+  pinned_at: number | null;
   claude_change: string | null;
   queued: number;
 }
@@ -48,7 +49,7 @@ export interface ClaudePageView {
   shapes: Shape[];
 }
 
-const META_COLUMNS = `p.id, p.name, p.created_at, p.updated_at, p.ord, p.repo, p.by_claude, p.claude_change,
+const META_COLUMNS = `p.id, p.name, p.created_at, p.updated_at, p.ord, p.repo, p.by_claude, p.pinned_at, p.claude_change,
   (SELECT count(*) FROM queue q WHERE q.page_id = p.id) AS queued`;
 
 /**
@@ -131,6 +132,16 @@ export class Store {
     });
   }
 
+  setPagePinned(id: string, pinned: boolean): PageMeta | null {
+    return this.tx(() => {
+      const row = this.metaRow(id);
+      if (!row) return null;
+      // Pinning an already pinned page keeps its place among the pins.
+      if (pinned !== (row.pinned_at != null)) this.run("UPDATE pages SET pinned_at = ? WHERE id = ?", pinned ? this.now() : null, id);
+      return toMeta(this.metaRow(id)!);
+    });
+  }
+
   duplicatePage(id: string, name: string): PageMeta | null {
     return this.tx(() => {
       const source = this.getPage(id);
@@ -150,11 +161,12 @@ export class Store {
       for (const page of pages) {
         const elements = liveElements(page.elements);
         this.run(
-          `INSERT INTO pages (id, name, created_at, updated_at, ord, repo, by_claude, elements, app_state)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `INSERT INTO pages (id, name, created_at, updated_at, ord, repo, by_claude, pinned_at, elements, app_state)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT (id) DO UPDATE SET name = excluded.name, created_at = excluded.created_at,
              updated_at = excluded.updated_at, ord = excluded.ord, repo = COALESCE(excluded.repo, pages.repo),
-             by_claude = MAX(excluded.by_claude, pages.by_claude), elements = excluded.elements, app_state = excluded.app_state, claude_change = NULL`,
+             by_claude = MAX(excluded.by_claude, pages.by_claude), pinned_at = excluded.pinned_at,
+             elements = excluded.elements, app_state = excluded.app_state, claude_change = NULL`,
           page.id,
           page.name,
           page.createdAt,
@@ -163,6 +175,7 @@ export class Store {
           page.repo ?? null,
           // Backups from before byClaude existed: only Claude's pages had a repo.
           Number(page.byClaude ?? page.repo != null),
+          page.pinnedAt ?? null,
           JSON.stringify(elements),
           JSON.stringify(page.appState),
         );
@@ -464,6 +477,7 @@ function toMeta(row: PageRow): PageMeta {
     order: row.ord,
     repo: row.repo,
     byClaude: row.by_claude === 1,
+    pinnedAt: row.pinned_at,
     claude: { queued: row.queued, changedAt: change?.at ?? null },
   };
 }

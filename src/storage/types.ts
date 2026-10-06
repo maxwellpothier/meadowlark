@@ -14,6 +14,8 @@ export interface PageMeta {
   repo?: string | null;
   /** Claude created this page (or the page it was duplicated from). */
   byClaude?: boolean;
+  /** When the page was pinned to the top of the sidebar. Null or absent if it isn't pinned. */
+  pinnedAt?: number | null;
   claude?: ClaudeStatus;
 }
 
@@ -93,6 +95,8 @@ export interface StorageAdapter {
   /** Save viewport only. Does not bump updatedAt. */
   savePageView(id: string, view: PageView): Promise<void>;
   updatePageMeta(id: string, patch: Partial<Pick<PageMeta, "name">>): Promise<PageMeta | null>;
+  /** Pins or unpins a page. Does not bump updatedAt. */
+  setPagePinned(id: string, pinned: boolean): Promise<PageMeta | null>;
   duplicatePage(id: string, name: string): Promise<PageMeta | null>;
   deletePage(id: string): Promise<void>;
   /** Insert or overwrite pages by id. Pages not in the list are untouched. */
