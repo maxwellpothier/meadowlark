@@ -64,6 +64,8 @@ Claude doesn't see Excalidraw's JSON. It gets a flat list of shapes (`{ id, type
 | `add_page`    | a new page from shapes. Also how Claude does a redo                                     |
 | `edit_page`   | remove, update and add shapes on an existing page                                       |
 | `revert_page` | undo Claude's latest change: a waiting edit, or else the last applied one               |
+| `render_page` | a PNG of a page (or a crop around some shapes), with Claude's waiting edits drawn in    |
+| `get_context` | what you're looking at: the open page, your selection, and which shapes are on screen   |
 
 The rules:
 
@@ -72,6 +74,8 @@ The rules:
 - **Edits are queued, then applied by the app.** Sizing text needs a browser, so the server stores Claude's edit and the app draws it into real Excalidraw elements (`src/claude/apply.ts`). A page you aren't looking at is updated as soon as the app sees the edit. If the page is open, a banner asks before applying: **Apply** or **Discard**. An empty open page (one Claude just created) is filled in without asking.
 - **Every applied change can be reverted.** Before applying, the server snapshots the page. Changed pages get a dot in the sidebar, and opening one shows **Revert** and **Keep**.
 - **Claude's pages are marked.** A page Claude created has Claude's spark before its name in the sidebar, and so do duplicates of it.
+- **Claude checks its drawings.** After drawing, Claude is told to call `render_page` and fix what looks wrong. The MCP server can't draw (text needs a browser), so it leaves a request in the database and an open tab draws the page and sends back a PNG (`src/claude/render.ts`). Claude's waiting edits are drawn in memory only, so they still wait for you. If no tab takes the request within 3 s, Claude is told Meadowlark isn't open.
+- **Claude can see what you're pointing at.** The open tab tells the server which page is open, what's selected and what's on screen, shortly after it changes and every 30 s while the tab is in front (`src/claude/context.ts`). `get_context` reports it, and says when the app looks closed or is in a background tab. With two tabs open, whichever reported last wins: usually the one you're using, but two windows side by side both report every 30 s.
 - **Pages remember which repo created them.** When Claude creates a page, the MCP server records the session's git remote (or repo path). It isn't shown anywhere yet.
 
 ## Features
@@ -114,6 +118,8 @@ src/
   App.tsx                 page list state, sidebar actions, change events, Claude edits, wiring
   claude/model.ts         Claude's view of a page: shapes, edits, validation, arrow geometry (shared with the server)
   claude/apply.ts         turns Claude's edits into Excalidraw elements (browser only)
+  claude/render.ts        draws pages for Claude's render_page (browser only)
+  claude/context.ts       reports the open page, selection and viewport for Claude's get_context
   editor/Editor.tsx       loads one page and mounts <Excalidraw> (one instance per page id)
   editor/AutoSaver.ts     debounced, change-detecting saver for the open page
   sidebar/                page list, inline rename, search, menus
@@ -138,6 +144,8 @@ The UI only talks to `StorageAdapter` (`storage/types.ts`), implemented over HTT
 | `files`     | one row per image, keyed by page and file id                                                              |
 | `queue`     | Claude's edits waiting for the app to apply them                                                          |
 | `snapshots` | page content from before each applied Claude change (the newest 20 per page), for Revert                 |
+| `renders`   | Claude's requests to see a page, and the PNG an open tab drew. Deleted once Claude has the answer          |
+| `context`   | one row: the page, selection and viewport of the tab you last used, and when it last reported            |
 
 Excalidraw file ids are content hashes. Because of that, a save only writes images that aren't stored yet and deletes ones that are no longer referenced. Unchanged images are never rewritten.
 
@@ -173,6 +181,7 @@ Restore matches pages by `id`:
 
 - **Multiple tabs**: two tabs editing the same page at once don't merge. Whichever saves last wins, and the other tab reloads the page when it sees the change.
 - **Claude's arrows are straight.** Arrows Claude attaches are routed centre to centre, and moving an attached shape re-routes them straight, dropping any bends you added by hand.
+- **Claude can only see pages while Meadowlark is open in a browser.** `render_page` fails if no tab is open. A crop (`render_page` with `ids`) doesn't outline frames.
 - **Undo history** is per editor session. Switching pages or reloading clears it, the same as in Excalidraw. Claude's changes are undone with Revert, not Ctrl+Z.
 - **The Excalidraw library** (saved shapes) isn't saved yet.
 - **Pages from the old IndexedDB version** aren't moved over automatically. Use **Export all** in the old version and **Restore from backup** here.

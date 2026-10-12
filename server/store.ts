@@ -13,10 +13,16 @@ import type {
   PageScene,
   PageView,
   PersistedAppState,
+  RenderRequest,
+  RenderResult,
+  SceneRect,
+  ViewerContext,
 } from "../src/storage/types.ts";
 
 /** Snapshots kept per page for reverting Claude's changes. */
 const SNAPSHOTS_KEPT = 20;
+/** Longer than Claude ever waits for a render, so a request older than this has been given up on. */
+export const RENDER_TTL_MS = 60_000;
 
 interface PageRow {
   id: string;
@@ -314,6 +320,83 @@ export class Store {
 
   dismissClaudeChange(id: string): void {
     this.run("UPDATE pages SET claude_change = NULL WHERE id = ?", id);
+  }
+
+  // ---- Claude looking at the app --------------------------------------------
+
+  /** Asks the open app to draw a page. Null if there's no such page. */
+  requestRender(pageId: string, ids: string[] | null): number | null {
+    return this.tx(() => {
+      if (!this.metaRow(pageId)) return null;
+      this.run("DELETE FROM renders WHERE created_at < ?", this.now() - RENDER_TTL_MS);
+      const result = this.run(
+        "INSERT INTO renders (page_id, ids, created_at) VALUES (?, ?, ?)",
+        pageId,
+        ids ? JSON.stringify(ids) : null,
+        this.now(),
+      );
+      return Number(result.lastInsertRowid);
+    });
+  }
+
+  /** Hands the oldest waiting render request to one tab. Requests Claude has stopped waiting for are skipped. */
+  claimRender(): RenderRequest | null {
+    return this.tx(() => {
+      const row = this.get<{ id: number; page_id: string; ids: string | null }>(
+        "SELECT id, page_id, ids FROM renders WHERE claimed_at IS NULL AND created_at >= ? ORDER BY id LIMIT 1",
+        this.now() - RENDER_TTL_MS,
+      );
+      if (!row) return null;
+      this.run("UPDATE renders SET claimed_at = ? WHERE id = ?", this.now(), row.id);
+      return { id: row.id, pageId: row.page_id, ids: row.ids ? (JSON.parse(row.ids) as string[]) : null };
+    });
+  }
+
+  /** Does nothing if Claude has stopped waiting for it. */
+  finishRender(id: number, result: RenderResult): void {
+    this.run("UPDATE renders SET result = ? WHERE id = ?", JSON.stringify(result), id);
+  }
+
+  /** Where a render request is up to. Null once it's gone. */
+  renderStatus(id: number): { claimed: boolean; result: RenderResult | null } | null {
+    const row = this.get<{ claimed_at: number | null; result: string | null }>(
+      "SELECT claimed_at, result FROM renders WHERE id = ?",
+      id,
+    );
+    if (!row) return null;
+    return { claimed: row.claimed_at != null, result: row.result ? (JSON.parse(row.result) as RenderResult) : null };
+  }
+
+  dropRender(id: number): void {
+    this.run("DELETE FROM renders WHERE id = ?", id);
+  }
+
+  saveContext(context: ViewerContext): void {
+    this.run(
+      `INSERT INTO context (id, page_id, selected_ids, viewport, visible, updated_at) VALUES (1, ?, ?, ?, ?, ?)
+       ON CONFLICT (id) DO UPDATE SET page_id = excluded.page_id, selected_ids = excluded.selected_ids,
+         viewport = excluded.viewport, visible = excluded.visible, updated_at = excluded.updated_at`,
+      context.pageId,
+      JSON.stringify(context.selectedIds),
+      context.viewport ? JSON.stringify(context.viewport) : null,
+      Number(context.visible),
+      this.now(),
+    );
+  }
+
+  /** What the user was last looking at, and when the app last said so. */
+  getContext(): (ViewerContext & { updatedAt: number }) | null {
+    const row = this.get<{ page_id: string | null; selected_ids: string; viewport: string | null; visible: number; updated_at: number }>(
+      "SELECT page_id, selected_ids, viewport, visible, updated_at FROM context WHERE id = 1",
+    );
+    if (!row) return null;
+    return {
+      pageId: row.page_id,
+      selectedIds: JSON.parse(row.selected_ids) as string[],
+      viewport: row.viewport ? (JSON.parse(row.viewport) as SceneRect) : null,
+      visible: row.visible === 1,
+      updatedAt: row.updated_at,
+    };
   }
 
   /** Copies the database to `path` in one consistent read, safe while others write. */

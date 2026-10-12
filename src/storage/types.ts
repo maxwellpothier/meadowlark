@@ -77,6 +77,36 @@ export interface NewPageInput {
   files?: BinaryFiles;
 }
 
+/** Claude asking to see a page (MCP render_page). An open tab draws it and sends back a PNG. */
+export interface RenderRequest {
+  id: number;
+  pageId: string;
+  /** Crop to these shapes. Null for the whole page. */
+  ids: string[] | null;
+}
+
+/** A base64 PNG, or why the page couldn't be drawn. */
+export type RenderResult = { png: string } | { error: string };
+
+/** A rectangle in scene units. */
+export interface SceneRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** What the user is looking at, so Claude can follow "this" and "here" (MCP get_context). */
+export interface ViewerContext {
+  pageId: string | null;
+  /** Selected elements. A selected label counts as its box. */
+  selectedIds: string[];
+  /** The part of the page on screen. */
+  viewport: SceneRect | null;
+  /** The tab is in front, not hidden or minimised. */
+  visible: boolean;
+}
+
 export interface BackupPage extends PageMeta, PageScene {}
 
 export interface Backup {
@@ -123,4 +153,10 @@ export interface StorageAdapter {
   revertClaudeChange(id: string): Promise<PageMeta | null>;
   /** Keeps Claude's last change and stops flagging it. */
   dismissClaudeChange(id: string): Promise<void>;
+
+  /** Takes Claude's oldest waiting render request, so no other tab draws it too. Null if there's none. */
+  claimRender(): Promise<RenderRequest | null>;
+  finishRender(id: number, result: RenderResult): Promise<void>;
+  /** Tells Claude what the user is looking at. */
+  saveContext(context: ViewerContext): Promise<void>;
 }

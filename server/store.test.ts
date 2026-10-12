@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { file, files, image, rect } from "../src/test/fixtures.ts";
 import { openDb } from "./db.ts";
-import { Store } from "./store.ts";
+import { RENDER_TTL_MS, Store } from "./store.ts";
 
 let clock = 1000;
 let store: Store;
@@ -306,6 +306,47 @@ describe("Store Claude edits", () => {
       ["Auth flow", 2],
     ]);
     expect(store.findPages()).toHaveLength(3);
+  });
+});
+
+describe("Store render requests and context", () => {
+  it("hands each render request to one tab and keeps its result for Claude", () => {
+    const page = store.createPage({ name: "P", elements: [rect({ id: "a" })] });
+    const id = store.requestRender(page.id, ["a"])!;
+    expect(store.renderStatus(id)).toEqual({ claimed: false, result: null });
+
+    expect(store.claimRender()).toEqual({ id, pageId: page.id, ids: ["a"] });
+    expect(store.claimRender()).toBeNull(); // a second tab gets nothing
+    expect(store.renderStatus(id)).toEqual({ claimed: true, result: null });
+
+    store.finishRender(id, { png: "iVBOR" });
+    expect(store.renderStatus(id)).toEqual({ claimed: true, result: { png: "iVBOR" } });
+    store.dropRender(id);
+    expect(store.renderStatus(id)).toBeNull();
+    store.finishRender(id, { error: "late" }); // a tab finishing after Claude gave up changes nothing
+    expect(store.renderStatus(id)).toBeNull();
+  });
+
+  it("refuses to render a missing page", () => {
+    expect(store.requestRender("missing", null)).toBeNull();
+  });
+
+  it("skips and prunes render requests Claude has stopped waiting for", () => {
+    const page = store.createPage({ name: "P" });
+    const old = store.requestRender(page.id, null)!;
+    clock += RENDER_TTL_MS + 1;
+    expect(store.claimRender()).toBeNull();
+    const fresh = store.requestRender(page.id, null)!;
+    expect(store.renderStatus(old)).toBeNull();
+    expect(store.claimRender()?.id).toBe(fresh);
+  });
+
+  it("saves and reads what the user is looking at", () => {
+    expect(store.getContext()).toBeNull();
+    const viewport = { x: -10, y: 0, width: 800, height: 600 };
+    store.saveContext({ pageId: "p1", selectedIds: ["a"], viewport, visible: true });
+    store.saveContext({ pageId: "p2", selectedIds: [], viewport: null, visible: false });
+    expect(store.getContext()).toEqual({ pageId: "p2", selectedIds: [], viewport: null, visible: false, updatedAt: expect.any(Number) });
   });
 });
 

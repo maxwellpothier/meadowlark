@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { ApplyQueuedEdits, BackupPage, NewPageInput, PageScene, PageView } from "../src/storage/types.ts";
+import type { ApplyQueuedEdits, BackupPage, NewPageInput, PageScene, PageView, RenderResult, ViewerContext } from "../src/storage/types.ts";
 import type { Store } from "./store.ts";
 
 /** Required on every API call: a custom header can't be sent cross-site without a CORS preflight, which we never grant. */
@@ -12,8 +12,10 @@ const KEEPALIVE_MS = 25_000;
 type Route = (store: Store, params: string[], body: unknown) => unknown;
 
 // Each route returns the JSON response (null is a valid "not found" answer,
-// matching StorageAdapter). Paths are matched against /api/<pattern>.
-const ROUTES: [method: string, pattern: RegExp, route: Route][] = [
+// matching StorageAdapter). Paths are matched against /api/<pattern>. Writes
+// tell open tabs to refresh, except quiet ones: nothing a tab shows changes,
+// and the context is written on every selection change.
+const ROUTES: [method: string, pattern: RegExp, route: Route, quiet?: "quiet"][] = [
   ["GET", /^pages$/, (s) => s.listPages()],
   ["POST", /^pages$/, (s, _, b) => s.createPage(b as NewPageInput)],
   ["POST", /^pages\/put$/, (s, _, b) => s.putPages((b as { pages: BackupPage[] }).pages)],
@@ -31,6 +33,9 @@ const ROUTES: [method: string, pattern: RegExp, route: Route][] = [
   ["DELETE", /^pages\/([^/]+)\/queue$/, (s, [id]) => s.discardQueuedEdits(id)],
   ["POST", /^pages\/([^/]+)\/claude\/revert$/, (s, [id]) => s.revertClaudeChange(id)],
   ["POST", /^pages\/([^/]+)\/claude\/dismiss$/, (s, [id]) => s.dismissClaudeChange(id)],
+  ["POST", /^renders\/claim$/, (s) => s.claimRender(), "quiet"],
+  ["PUT", /^renders\/(\d+)$/, (s, [id], b) => s.finishRender(Number(id), b as RenderResult), "quiet"],
+  ["PUT", /^context$/, (s, _, b) => s.saveContext(b as ViewerContext), "quiet"],
 ];
 
 export interface Api {
@@ -84,13 +89,13 @@ export function createApi(store: Store): Api {
       }
       if (req.headers[API_HEADER] !== "1") return send(res, 403, { error: `Missing ${API_HEADER} header.` });
 
-      for (const [method, pattern, route] of ROUTES) {
+      for (const [method, pattern, route, quiet] of ROUTES) {
         const match = pattern.exec(path);
         if (!match || req.method !== method) continue;
         try {
           const body = method === "GET" || method === "DELETE" ? undefined : await readJson(req);
           const result = route(store, match.slice(1).map(decodeURIComponent), body);
-          if (method !== "GET") notify();
+          if (method !== "GET" && !quiet) notify();
           return send(res, 200, result ?? null);
         } catch (err) {
           console.error(`${method} /api/${path} failed`, err);

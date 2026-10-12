@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
-import { Excalidraw, hashElementsVersion, restore } from "@excalidraw/excalidraw";
+import { Excalidraw, getVisibleSceneBounds, hashElementsVersion, restore } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { AppState, BinaryFiles, ExcalidrawInitialDataState } from "@excalidraw/excalidraw/types";
 import "@excalidraw/excalidraw/index.css";
 import type { ThemeName } from "../prefs";
-import type { PageMeta, StorageAdapter } from "../storage/types";
+import type { PageMeta, SceneRect, StorageAdapter } from "../storage/types";
 import { fitText } from "../claude/apply";
 import { AutoSaver, type SaveStatus } from "./AutoSaver";
 
@@ -18,6 +18,8 @@ interface EditorProps {
   /** Called with the page's updatedAt once it has loaded. */
   onLoaded: (id: string, updatedAt: number) => void;
   onStatus: (status: SaveStatus) => void;
+  /** Called on every change with what's selected (a selected label counts as its box) and the part of the page on screen. */
+  onViewerChange: (selectedIds: string[], viewport: SceneRect) => void;
   /** Lets the parent flush pending edits (before switching pages, exporting, etc.). */
   saverRef: RefObject<AutoSaver | null>;
 }
@@ -36,15 +38,15 @@ const UI_OPTIONS = {
 };
 
 export function Editor(props: EditorProps) {
-  const { pageId, pageName, storage, theme, onThemeChange, onSaved, onLoaded, onStatus, saverRef } = props;
+  const { pageId, pageName, storage, theme, onThemeChange, onSaved, onLoaded, onStatus, onViewerChange, saverRef } = props;
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Callbacks change identity on every App render; keep the latest in refs so
   // the saver and onChange handler don't need to be recreated.
-  const callbacks = useRef({ onThemeChange, onSaved, onLoaded, onStatus, theme });
+  const callbacks = useRef({ onThemeChange, onSaved, onLoaded, onStatus, onViewerChange, theme });
   useLayoutEffect(() => {
-    callbacks.current = { onThemeChange, onSaved, onLoaded, onStatus, theme };
+    callbacks.current = { onThemeChange, onSaved, onLoaded, onStatus, onViewerChange, theme };
   });
   // Excalidraw may report its default theme before it has applied our prop.
   // Only treat a mismatch as the user's toggle once it has reported ours.
@@ -125,6 +127,7 @@ export function Editor(props: EditorProps) {
       if (appState.theme === callbacks.current.theme) themeApplied.current = true;
       else if (themeApplied.current) callbacks.current.onThemeChange(appState.theme);
       saverRef.current?.schedule({ elements, appState, files });
+      callbacks.current.onViewerChange(selectedIds(elements, appState), visibleRect(appState));
     },
     [saverRef],
   );
@@ -143,4 +146,17 @@ export function Editor(props: EditorProps) {
       autoFocus
     />
   );
+}
+
+function selectedIds(elements: readonly ExcalidrawElement[], appState: AppState): string[] {
+  const ids = Object.keys(appState.selectedElementIds);
+  if (ids.length === 0) return ids;
+  const containers = new Map<string, string>();
+  for (const el of elements) if (el.type === "text" && el.containerId) containers.set(el.id, el.containerId);
+  return [...new Set(ids.map((id) => containers.get(id) ?? id))].sort();
+}
+
+function visibleRect(appState: AppState): SceneRect {
+  const [minX, minY, maxX, maxY] = getVisibleSceneBounds(appState).map(Math.round);
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }

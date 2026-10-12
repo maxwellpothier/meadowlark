@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { applyEdits } from "./claude/apply";
+import { ContextReporter } from "./claude/context";
+import { renderRequests } from "./claude/render";
 import type { AutoSaver, SaveStatus } from "./editor/AutoSaver";
 import { Editor } from "./editor/Editor";
 import { buildBackupBlob, parseBackup } from "./io/backup";
@@ -8,7 +10,7 @@ import { isNarrowScreen, loadPrefs, savePrefs, type ThemeName } from "./prefs";
 import { Sidebar, type SidebarActions } from "./sidebar/Sidebar";
 import { sortPages } from "./sidebar/sort";
 import { storage } from "./storage";
-import type { PageMeta } from "./storage/types";
+import type { PageMeta, SceneRect } from "./storage/types";
 import { ClaudeBanner, type ClaudeBannerActions } from "./ui/ClaudeBanner";
 import { useDialogs } from "./ui/useDialogs";
 
@@ -99,6 +101,33 @@ export default function App() {
 
   const flushActive = useCallback(() => saverRef.current?.flush() ?? Promise.resolve(), []);
 
+  // What you're looking at, for Claude's get_context.
+  const [context] = useState(() => new ContextReporter({ send: (c) => storage.saveContext(c) }));
+  useEffect(() => context.start(), [context]);
+  useEffect(() => context.update({ pageId: activeId, selectedIds: [], viewport: null }), [context, activeId]);
+  const onViewerChange = useCallback(
+    (selectedIds: string[], viewport: SceneRect) => context.update({ selectedIds, viewport }),
+    [context],
+  );
+  useEffect(() => {
+    const onVisibility = () => context.update({ visible: document.visibilityState === "visible" });
+    onVisibility(); // a tab can open in the background
+    // With two tabs open, the one you're using is the one Claude should hear about.
+    const onFocus = () => context.flush(true);
+    const onPageHide = () => {
+      context.update({ visible: false });
+      context.flush();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("pagehide", onPageHide);
+    };
+  }, [context]);
+
   const addMeta = useCallback((meta: PageMeta) => setPages((ps) => [...(ps ?? []), meta]), []);
   // Only touches pages we still have, so a late save can't resurrect a deleted page in the list.
   const updateMeta = useCallback((meta: PageMeta) => {
@@ -114,11 +143,15 @@ export default function App() {
   }, []);
 
   // The server pushes an event whenever the data changes, including when a
-  // Claude session writes to it directly. Re-read the page list each time.
+  // Claude session writes to it directly. Re-read the page list each time,
+  // and check whether Claude is waiting for a picture.
   useEffect(() => {
     let stale = false;
+    // Claude asking to see a page (render_page). Saving the open page first puts your latest strokes in the picture.
+    const pokeRenders = renderRequests(storage, flushActive);
     const source = new EventSource("/api/events");
     source.onmessage = () => {
+      pokeRenders();
       void storage.listPages().then(
         (list) => {
           if (stale || list.length === 0) return;
@@ -138,7 +171,7 @@ export default function App() {
       stale = true;
       source.close();
     };
-  }, [reloadEditor]);
+  }, [reloadEditor, flushActive]);
 
   /**
    * Draws Claude's queued edits into a page and saves the result (the server
@@ -439,6 +472,7 @@ export default function App() {
             onSaved={updateMeta}
             onLoaded={onEditorLoaded}
             onStatus={setStatus}
+            onViewerChange={onViewerChange}
             saverRef={saverRef}
           />
         ) : (

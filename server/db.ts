@@ -68,6 +68,23 @@ const MIGRATIONS = [
    UPDATE pages SET inbox = 1 WHERE by_claude = 1;`,
   // Saved for Later is back, now as its own sidebar section.
   `ALTER TABLE pages ADD COLUMN saved_at INTEGER;`,
+  // Claude asks the open app to draw a page (renders), and the app says what the user is looking at (context).
+  `CREATE TABLE renders (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     page_id TEXT NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
+     ids TEXT,
+     created_at INTEGER NOT NULL,
+     claimed_at INTEGER,
+     result TEXT
+   );
+   CREATE TABLE context (
+     id INTEGER PRIMARY KEY CHECK (id = 1),
+     page_id TEXT,
+     selected_ids TEXT NOT NULL,
+     viewport TEXT,
+     visible INTEGER NOT NULL,
+     updated_at INTEGER NOT NULL
+   );`,
 ];
 
 export function openDb(path = defaultDbPath()): DatabaseSync {

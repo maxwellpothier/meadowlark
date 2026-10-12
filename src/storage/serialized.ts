@@ -48,5 +48,8 @@ export function serialized(inner: StorageAdapter): StorageAdapter {
     discardQueuedEdits: (id) => run(() => inner.discardQueuedEdits(id)),
     revertClaudeChange: (id) => run(() => inner.revertClaudeChange(id)),
     dismissClaudeChange: (id) => run(() => inner.dismissClaudeChange(id)),
+    claimRender: () => run(() => inner.claimRender()),
+    finishRender: (id, result) => run(() => inner.finishRender(id, result)),
+    saveContext: (context) => run(() => inner.saveContext(context)),
   };
 }

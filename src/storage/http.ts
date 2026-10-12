@@ -9,7 +9,10 @@ import type {
   PageMeta,
   PageScene,
   PageView,
+  RenderRequest,
+  RenderResult,
   StorageAdapter,
+  ViewerContext,
 } from "./types";
 
 interface SaveResult {
@@ -112,6 +115,18 @@ export class HttpAdapter implements StorageAdapter {
 
   async dismissClaudeChange(id: string): Promise<void> {
     await call("POST", `pages/${enc(id)}/claude/dismiss`);
+  }
+
+  claimRender(): Promise<RenderRequest | null> {
+    return call("POST", "renders/claim");
+  }
+
+  async finishRender(id: number, result: RenderResult): Promise<void> {
+    await call("PUT", `renders/${id}`, result);
+  }
+
+  async saveContext(context: ViewerContext): Promise<void> {
+    await call("PUT", "context", context);
   }
 }
 

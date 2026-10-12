@@ -4,7 +4,8 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { SHAPE_TYPES } from "../src/claude/model.ts";
+import { SHAPE_TYPES, type Shape } from "../src/claude/model.ts";
+import type { RenderResult, SceneRect } from "../src/storage/types.ts";
 import { openDb } from "./db.ts";
 import { detectRepo } from "./repo.ts";
 import { Store } from "./store.ts";
@@ -25,6 +26,14 @@ Written notes ("write this up") are text elements. Text doesn't wrap by itself, 
 70 characters. Use fontSize 28 for a title and 24 for headings, one text element per section stacked top to bottom,
 and boxes for callouts or anything worth drawing next to the prose.
 
+Seeing what you drew: after add_page or edit_page, call render_page and look at the picture before you tell the
+user you're done. Fix overlapping shapes, cut-off labels and arrows crossing boxes with another edit. On a big
+page, pass ids to look closer at one part. Rendering needs Meadowlark open in a browser; if it isn't, say you
+couldn't check the layout.
+
+What the user is looking at: when they point at something without naming it ("this", "here", "the selected boxes",
+"what I'm looking at"), call get_context first. It gives the open page, the selected shapes and what's on screen.
+
 Rules:
 - Edits to an existing page change only what was asked. Read the page first; the user may have moved
   or added things by hand since you last saw it, and those changes must survive.
@@ -35,6 +44,14 @@ Rules:
   already includes edits that are still waiting. revert_page undoes your most recent change.
 - Pages you create land in the user's Inbox at the bottom of the sidebar until they keep them.
 - The user opens the app themselves. Tell them the page name you created or changed.`;
+
+/** How long render_page waits for an open tab to take its request before deciding the app isn't open. */
+const CLAIM_TIMEOUT_MS = 3_000;
+/** How long a tab gets to draw the page once it has taken the request. */
+const RENDER_TIMEOUT_MS = 20_000;
+const POLL_MS = 150;
+/** The app re-sends the context every 30 s while it's in front, so older than this means it's closed. */
+const CONTEXT_STALE_MS = 90_000;
 
 const fill = z.enum(["solid", "hachure", "cross-hatch"]);
 const stroke = z.enum(["solid", "dashed", "dotted"]);
@@ -181,5 +198,111 @@ server.registerTool(
     });
   },
 );
+
+server.registerTool(
+  "render_page",
+  {
+    description:
+      "See a page as a picture, including your edits the app hasn't applied yet. Use it after drawing to check the " +
+      "layout. Pass ids to crop to those shapes (frames aren't outlined in a crop). Needs Meadowlark open in a browser.",
+    inputSchema: {
+      id: z.string(),
+      ids: z.array(z.string()).optional().describe("Crop to these shapes, plus a margin."),
+    },
+    annotations: { readOnlyHint: true },
+  },
+  async ({ id, ids }) => {
+    const page = store.readForClaude(id);
+    if (!page) return fail(`No page with id "${id}". Use list_pages to find it.`);
+    if (page.shapes.length === 0) return fail("The page is empty.");
+    const known = new Set(page.shapes.map((s) => s.id));
+    const unknown = (ids ?? []).filter((s) => !known.has(s));
+    if (unknown.length) return fail(`No shapes with these ids on the page: ${unknown.join(", ")}.`);
+
+    const requestId = store.requestRender(id, ids?.length ? ids : null);
+    if (requestId === null) return fail(`No page with id "${id}". Use list_pages to find it.`);
+    const outcome = await waitForRender(requestId);
+    if (outcome === "not-open") {
+      return fail("Meadowlark isn't open in a browser, so the page can't be drawn. Ask the user to open it, or go without the picture.");
+    }
+    if (outcome === "timeout") return fail("The app took too long to draw the page.");
+    if ("error" in outcome) return fail(`The app couldn't draw the page: ${outcome.error}`);
+    return {
+      content: [
+        { type: "image" as const, data: outcome.png, mimeType: "image/png" },
+        {
+          type: "text" as const,
+          text: JSON.stringify({ id, name: page.meta.name, pendingEdits: page.meta.claude?.queued || undefined }),
+        },
+      ],
+    };
+  },
+);
+
+server.registerTool(
+  "get_context",
+  {
+    description:
+      "What the user is looking at in Meadowlark: the open page, the shapes they've selected, and which shapes are on " +
+      "screen. Use it when they say \"this\" or \"here\" without naming a page or shape.",
+    inputSchema: {},
+    annotations: { readOnlyHint: true },
+  },
+  () => {
+    const context = store.getContext();
+    if (!context) return fail("Meadowlark hasn't been opened yet, so there's nothing on screen. Ask the user which page they mean.");
+    const age = Date.now() - context.updatedAt;
+    const app = age > CONTEXT_STALE_MS ? "closed" : context.visible ? "open" : "open in a background tab";
+    const page = context.pageId ? store.readForClaude(context.pageId) : null;
+    const selected = new Set(context.selectedIds);
+    const shapes = page?.shapes ?? [];
+    const viewport = context.viewport;
+    const unsaved = context.selectedIds.filter((s) => !shapes.some((shape) => shape.id === s)).length;
+    return ok({
+      app,
+      lastSeen: ago(age),
+      page: page ? { id: page.meta.id, name: page.meta.name } : null,
+      selected: shapes.filter((s) => selected.has(s.id)),
+      selectedNotSavedYet: unsaved || undefined,
+      onScreen: viewport ? shapes.filter((s) => overlaps(s, viewport)).map((s) => s.id) : undefined,
+      viewport: viewport ?? undefined,
+      note:
+        app === "closed"
+          ? "This is what the user last had open. They may be looking at something else now."
+          : unsaved
+            ? "Some of the selection was just drawn and isn't saved yet. Ask again in a second to see it."
+            : undefined,
+    });
+  },
+);
+
+async function waitForRender(requestId: number): Promise<RenderResult | "not-open" | "timeout"> {
+  const started = Date.now();
+  try {
+    for (;;) {
+      await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+      const status = store.renderStatus(requestId);
+      if (!status) return "timeout"; // pruned: only happens after far longer than we wait
+      if (status.result) return status.result;
+      const waited = Date.now() - started;
+      if (!status.claimed && waited > CLAIM_TIMEOUT_MS) return "not-open";
+      if (waited > RENDER_TIMEOUT_MS) return "timeout";
+    }
+  } finally {
+    store.dropRender(requestId);
+  }
+}
+
+function overlaps(shape: Shape, rect: SceneRect): boolean {
+  return shape.x < rect.x + rect.width && shape.x + shape.width > rect.x && shape.y < rect.y + rect.height && shape.y + shape.height > rect.y;
+}
+
+function ago(ms: number): string {
+  const s = Math.round(ms / 1000);
+  if (s < 90) return `${s}s ago`;
+  const m = Math.round(s / 60);
+  if (m < 90) return `${m} min ago`;
+  return `${Math.round(m / 60)} h ago`;
+}
 
 await server.connect(new StdioServerTransport());
