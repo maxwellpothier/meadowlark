@@ -57,17 +57,32 @@ export default function App() {
   const [claudeBusy, setClaudeBusy] = useState(false);
   const dialogs = useDialogs();
 
+  // Bumped to try reaching the server again after the first load failed.
+  const [retries, setRetries] = useState(0);
   useEffect(() => {
+    let cancelled = false;
+    let retry: ReturnType<typeof setTimeout> | undefined;
     loadInitialPages().then(
       (list) => {
+        if (cancelled) return;
+        setFatal(null);
         setPages(list);
         const last = list.find((p) => p.id === prefs.lastActivePageId);
         setActiveId(last?.id ?? sortPages(list)[0].id);
       },
-      (err: unknown) =>
-        setFatal(`Couldn't reach the Meadowlark server (${String(err)}). Start it with npm start or npm run dev.`),
+      (err: unknown) => {
+        if (cancelled) return;
+        setFatal(`Couldn't reach the Meadowlark server (${String(err)}). Start it with scripts/meadowlark.sh. Retrying…`);
+        // The server may be starting or restarting (under launchd it comes back on its own).
+        initialPages = null;
+        retry = setTimeout(() => setRetries((n) => n + 1), 3_000);
+      },
     );
-  }, [prefs]);
+    return () => {
+      cancelled = true;
+      clearTimeout(retry);
+    };
+  }, [prefs, retries]);
 
   useEffect(() => {
     if (activeId) savePrefs({ lastActivePageId: activeId });
@@ -196,7 +211,13 @@ export default function App() {
           page.elements,
           queued.map((q) => q.edit),
         );
-        if (open) saverRef.current?.cancel();
+        if (open) {
+          // Save anything drawn while the edits were being built. If there was any, the
+          // page's updatedAt moved, the apply below comes back "conflict", and the edits
+          // stay queued behind the banner instead of overwriting it.
+          await flushActive();
+          saverRef.current?.cancel();
+        }
         const result = await storage.applyQueuedEdits(id, {
           editIds: queued.map((q) => q.id),
           elements,
@@ -217,14 +238,20 @@ export default function App() {
     [flushActive, updateMeta, dialogs],
   );
 
-  // Claude's edits to pages you aren't looking at apply straight away. The
-  // open page waits for you (see ClaudeBanner), unless it's still empty.
+  // Claude's edits to pages you aren't looking at, and to pages Claude made,
+  // apply straight away. Your own open page waits for you (see ClaudeBanner),
+  // unless it's still empty. See docs/decisions/2026-10-19-claude-pages-apply-without-asking.md.
   useEffect(() => {
     for (const page of pages ?? []) {
       const queued = page.claude?.queued ?? 0;
       if (!queued) continue;
       if (page.id !== activeId) {
         void applyQueued(page.id, null);
+        continue;
+      }
+      // Open, so it goes through the open-page path: save first, then reload the editor.
+      if (page.byClaude) {
+        void applyQueued(page.id, { askFirst: false });
         continue;
       }
       const key = `${page.id}:${queued}`;

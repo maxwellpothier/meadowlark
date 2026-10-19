@@ -11,8 +11,8 @@ export interface ClaudeBannerActions {
 }
 
 /**
- * Shown over the open page when Claude has changes waiting for it (which
- * apply only when you say so, since you're looking at the page), or when
+ * Shown over the open page when Claude has changes waiting for it (on your
+ * own pages they apply only when you say so, since you're looking), or when
  * Claude changed it since you last acknowledged, or when Claude made it and
  * it's still in the inbox.
  */

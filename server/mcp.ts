@@ -26,10 +26,11 @@ Written notes ("write this up") are text elements. Text doesn't wrap by itself, 
 70 characters. Use fontSize 28 for a title and 24 for headings, one text element per section stacked top to bottom,
 and boxes for callouts or anything worth drawing next to the prose.
 
-Seeing what you drew: after add_page or edit_page, call render_page and look at the picture before you tell the
-user you're done. Fix overlapping shapes, cut-off labels and arrows crossing boxes with another edit. On a big
-page, pass ids to look closer at one part. Rendering needs Meadowlark open in a browser; if it isn't, say you
-couldn't check the layout.
+Seeing what you drew: after add_page or edit_page has returned (not in the same batch of calls), call render_page
+and look at the picture before you tell the user you're done. Fix overlapping shapes, cut-off labels and arrows
+crossing boxes with another edit. On a big page, pass ids to look closer at one part. Rendering needs Meadowlark
+open in a browser. If it isn't, make no more edits you can't see: ask the user in one line to open it, and render
+again once they have.
 
 What the user is looking at: when they point at something without naming it ("this", "here", "the selected boxes",
 "what I'm looking at"), call get_context first. It gives the open page, the selected shapes and what's on screen.
@@ -40,7 +41,7 @@ Rules:
 - For a redo ("redraw this as a sequence diagram", "start over"), use add_page, never a big edit. An edit
   that removes more than half of a page's elements is refused.
 - You cannot delete pages.
-- Edits don't appear instantly: the app applies them, asking the user first if the page is open. read_page
+- Edits don't appear instantly: the app applies them, asking the user first if it's their own page and open. read_page
   already includes edits that are still waiting. revert_page undoes your most recent change.
 - Pages you create land in the user's Inbox at the bottom of the sidebar until they keep them.
 - The user opens the app themselves. Tell them the page name you created or changed.`;
@@ -177,7 +178,7 @@ server.registerTool(
     return ok({
       id,
       addedIds: result.addedIds.length ? result.addedIds : undefined,
-      note: "Queued. The app applies it, asking the user first if the page is open.",
+      note: "Queued. The app applies it, asking the user first only if it's their own page and it's open.",
     });
   },
 );
@@ -223,7 +224,7 @@ server.registerTool(
     if (requestId === null) return fail(`No page with id "${id}". Use list_pages to find it.`);
     const outcome = await waitForRender(requestId);
     if (outcome === "not-open") {
-      return fail("Meadowlark isn't open in a browser, so the page can't be drawn. Ask the user to open it, or go without the picture.");
+      return fail("Meadowlark isn't open in a browser, so the page can't be drawn. Make no more edits you can't see: ask the user to open it, then render again.");
     }
     if (outcome === "timeout") return fail("The app took too long to draw the page.");
     if ("error" in outcome) return fail(`The app couldn't draw the page: ${outcome.error}`);

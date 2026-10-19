@@ -12,7 +12,7 @@ export interface PageMeta {
   order: number;
   /** Repo a Claude session created this page from (git remote or path). Not shown yet. */
   repo?: string | null;
-  /** Claude created this page (or the page it was duplicated from). */
+  /** Claude created this page. Its edits here apply without asking. A duplicate of it is yours. */
   byClaude?: boolean;
   /** When the page was pinned to the top of the sidebar. Null or absent if it isn't pinned. */
   pinnedAt?: number | null;

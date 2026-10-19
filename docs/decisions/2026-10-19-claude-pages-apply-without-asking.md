@@ -1,0 +1,3 @@
+# Claude's edits apply without asking on Claude's pages
+
+Claude's edits apply straight away on pages Claude made (`by_claude`). On pages you made, they still wait for you to Apply. You don't hand-edit Claude's pages: the in-flight board had no hand edits, but it showed 19 Apply prompts in 5.5 hours, and one batch of edits waited 2 hours. If you do edit a Claude page by hand, your changes survive, because an edit only changes the shapes it names. Duplicating a Claude page makes the copy yours. This narrows the "edits to an open page wait until you accept them" rule in [2026-10-01-local-server-and-mcp.md](2026-10-01-local-server-and-mcp.md), which still holds for your own pages.

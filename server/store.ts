@@ -174,7 +174,8 @@ export class Store {
     return this.tx(() => {
       const source = this.getPage(id);
       if (!source) return null;
-      const meta = this.insertPage({ ...source, name, repo: source.repo ?? null });
+      // Duplicating a Claude page is taking it over, so the copy is yours: Claude's edits to it ask first.
+      const meta = this.insertPage({ ...source, name, repo: source.repo ?? null, byClaude: false });
       if (source.view) this.savePageView(meta.id, source.view);
       return meta;
     });

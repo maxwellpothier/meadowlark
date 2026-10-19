@@ -116,6 +116,10 @@ class Work {
       if (u[key] !== undefined) patch[key] = u[key];
     }
     this.patch(el, patch);
+    // A box's text is drawn in the box's colour (as when it was added), so recolour it too.
+    // setLabel copies the old label's colour, so this also covers a recolour plus a move.
+    const label = u.strokeColor !== undefined ? this.labelOf(el) : undefined;
+    if (label) this.patch(label, { strokeColor: u.strokeColor });
     const before = box(el);
 
     if (el.type === "arrow" && (u.start !== undefined || u.end !== undefined)) {
@@ -297,7 +301,8 @@ class Work {
     if (!label) return;
     if (sized && container.type !== "arrow") this.patch(container, { x: sized.x, y: sized.y, width: sized.width, height: sized.height });
     this.patch(container, { boundElements: [...bound, { type: "text", id: label.id }] });
-    if (old?.strokeColor) label.strokeColor = old.strokeColor;
+    // A first label on an already coloured box takes the box's colour, as add() does.
+    label.strokeColor = old?.strokeColor ?? container.strokeColor;
     this.put(label, container.id);
   }
 

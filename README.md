@@ -26,6 +26,8 @@ Or let `scripts/meadowlark.sh` do both: it rebuilds if the source changed since 
 alias meadowlark='/path/to/meadowlark/scripts/meadowlark.sh'
 ```
 
+To keep it running without a terminal (on a Mac), run `meadowlark install` once. It installs a LaunchAgent that starts Meadowlark at login and restarts it if it crashes, logging to `~/Library/Logs/meadowlark.log`. `meadowlark restart` picks up new changes (it rebuilds on start), and `meadowlark uninstall` removes it. If the app can't reach the server when it loads, it keeps retrying until the server is up.
+
 Other scripts:
 
 ```sh
@@ -71,9 +73,9 @@ The rules:
 
 - **Claude can't delete pages.** It can remove shapes from a page.
 - **Big rewrites become new pages.** Claude is told to use `add_page` for a redo, and the server refuses any edit that would remove more than half of a page's shapes.
-- **Edits are queued, then applied by the app.** Sizing text needs a browser, so the server stores Claude's edit and the app draws it into real Excalidraw elements (`src/claude/apply.ts`). A page you aren't looking at is updated as soon as the app sees the edit. If the page is open, a banner asks before applying: **Apply** or **Discard**. An empty open page (one Claude just created) is filled in without asking.
+- **Edits are queued, then applied by the app.** Sizing text needs a browser, so the server stores Claude's edit and the app draws it into real Excalidraw elements (`src/claude/apply.ts`). A page you aren't looking at is updated as soon as the app sees the edit, and so is a page Claude made, even while it's open (you don't hand-edit those; see [docs/decisions/2026-10-19-claude-pages-apply-without-asking.md](docs/decisions/2026-10-19-claude-pages-apply-without-asking.md)). If one of your own pages is open, a banner asks before applying: **Apply** or **Discard**. An empty open page is filled in without asking.
 - **Every applied change can be reverted.** Before applying, the server snapshots the page. Changed pages get a dot in the sidebar, and opening one shows **Revert** and **Keep**.
-- **Claude's pages are marked.** A page Claude created has Claude's spark before its name in the sidebar, and so do duplicates of it.
+- **Claude's pages are marked.** A page Claude created has Claude's spark before its name in the sidebar. Duplicating one makes the copy yours, with no spark, so Claude's edits to it ask first.
 - **Claude checks its drawings.** After drawing, Claude is told to call `render_page` and fix what looks wrong. The MCP server can't draw (text needs a browser), so it leaves a request in the database and an open tab draws the page and sends back a PNG (`src/claude/render.ts`). Claude's waiting edits are drawn in memory only, so they still wait for you. If no tab takes the request within 3 s, Claude is told Meadowlark isn't open.
 - **Claude can see what you're pointing at.** The open tab tells the server which page is open, what's selected and what's on screen, shortly after it changes and every 30 s while the tab is in front (`src/claude/context.ts`). `get_context` reports it, and says when the app looks closed or is in a background tab. With two tabs open, whichever reported last wins: usually the one you're using, but two windows side by side both report every 30 s.
 - **Pages remember which repo created them.** When Claude creates a page, the MCP server records the session's git remote (or repo path). It isn't shown anywhere yet.

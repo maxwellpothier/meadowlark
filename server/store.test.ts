@@ -81,14 +81,14 @@ describe("Store pages", () => {
     expect(Object.keys(page.files)).toEqual(["f1"]);
   });
 
-  it("marks only Claude's pages, and their duplicates, as made by Claude", () => {
+  it("marks only Claude's pages as made by Claude; a duplicate is yours", () => {
     const mine = store.createPage({ name: "Mine" });
     const result = store.addClaudePage("Claude's", [{ type: "text", x: 0, y: 0, label: "hi" }], null);
     if (!result.ok) throw new Error(result.errors.join());
     const copy = store.duplicatePage(result.pageId, "Copy")!;
     expect(mine.byClaude).toBe(false);
     expect(store.getPage(result.pageId)!.byClaude).toBe(true);
-    expect(copy.byClaude).toBe(true);
+    expect(copy.byClaude).toBe(false);
   });
 
   it("puts only Claude's new pages in the inbox until they're kept", () => {
